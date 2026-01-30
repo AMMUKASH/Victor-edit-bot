@@ -1,13 +1,12 @@
 import os
 import random
-import requests
 from flask import Flask
 from threading import Thread
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-# --- RENDER SERVER (Don't touch) ---
+# --- RENDER SERVER ---
 app = Flask('')
 @app.route('/')
 def home(): return "Bot is Online!"
@@ -19,32 +18,51 @@ def keep_alive():
 TOKEN = "8285451307:AAH43YwSEXc_0JX5ES-RfUU_Ms8562izdzI" 
 FONT_DIR = "fonts"
 
-# --- CORE LOGIC ---
-def make_edit(img_path, text, font_name, mode):
+# --- NEW STYLISH ENGINE ---
+def make_stylish_edit(img_path, text, font_name):
     if img_path:
         img = Image.open(img_path).convert("RGBA")
     else:
-        img = Image.new('RGB', (1080, 1080), color=(20, 20, 20)).convert("RGBA")
+        img = Image.new('RGB', (1080, 1080), color=(10, 10, 10)).convert("RGBA")
     
     draw = ImageDraw.Draw(img)
     w, h = img.size
     
     try:
         f_path = os.path.join(FONT_DIR, font_name)
-        font = ImageFont.truetype(f_path, int(h/12))
+        # Bada Font (Main Name)
+        font_main = ImageFont.truetype(f_path, int(h/7))
+        # Chota Font (Bottom Text)
+        font_sub = ImageFont.truetype(f_path, int(h/15))
     except:
-        font = ImageFont.load_default()
+        font_main = ImageFont.load_default()
+        font_sub = ImageFont.load_default()
 
-    txt_color = "yellow" if mode == "THUMB" else "white"
-    draw.text((w/2, h-150), text, fill=txt_color, font=font, anchor="ms", stroke_width=5, stroke_fill="black")
+    # --- GLOW EFFECT LOGIC ---
+    # Layer for glow
+    glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow_layer)
     
-    out = "final.png"
+    # Draw thick red/orange shadow for glow
+    glow_draw.text((w/2, h-h//4), text, fill=(255, 50, 0, 255), font=font_main, anchor="ms", stroke_width=15)
+    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=10))
+    
+    # Merge glow with main image
+    img.alpha_composite(glow_layer)
+    
+    # Draw Main Yellow Text
+    draw.text((w/2, h-h//4), text, fill="yellow", font=font_main, anchor="ms", stroke_width=2, stroke_fill="white")
+    
+    # Draw "Girl" Style sub-text
+    draw.text((w/2 + 100, h-h//6), "Girl", fill="white", font=font_sub, anchor="ms")
+
+    out = "stylish_output.png"
     img.convert("RGB").save(out)
     return out
 
 # --- HANDLERS ---
 async def start(u, c):
-    await u.message.reply_text("Bhai! Photo bhej ya naam likh, main edit kar dunga.")
+    await u.message.reply_text("Bhai! Ab bot naye Killer Style mein edit karega. Photo bhejien!")
 
 async def handle_input(u, c):
     msg = u.message.caption or u.message.text
@@ -59,23 +77,18 @@ async def handle_input(u, c):
         c.user_data['p'] = None
 
     all_f = [f for f in os.listdir(FONT_DIR) if f.endswith('.ttf')]
-    btns = [[InlineKeyboardButton(f"Font: {fn}", callback_data=f"F:{fn}")] for fn in all_f]
-    await u.message.reply_text("Font Select Karein:", reply_markup=InlineKeyboardMarkup(btns))
+    btns = [[InlineKeyboardButton(f"Style Font: {fn}", callback_data=f"S:{fn}")] for fn in all_f]
+    await u.message.reply_text("Font chunein (Glow effect ke saath):", reply_markup=InlineKeyboardMarkup(btns))
 
 async def button(u, c):
     q = u.callback_query
     await q.answer()
     d = q.data.split(":")
     
-    if d[0] == "F":
-        btns = [[InlineKeyboardButton("Thumbnail Style", callback_data=f"S:THUMB:{d[1]}"),
-                 InlineKeyboardButton("DP Style", callback_data=f"S:DP:{d[1]}")]]
-        await q.edit_message_text(f"Font '{d[1]}' set! Style chunein:", reply_markup=InlineKeyboardMarkup(btns))
-    
-    elif d[0] == "S":
-        await q.edit_message_text("Editing chalu hai... 🎨")
-        res = make_edit(c.user_data.get('p'), c.user_data.get('t'), d[2], d[1])
-        await q.message.reply_photo(open(res, 'rb'), caption="Ye lo bhai!")
+    if d[0] == "S":
+        await q.edit_message_text("Killer Style Editing chalu hai... 🔥")
+        res = make_stylish_edit(c.user_data.get('p'), c.user_data.get('t'), d[1])
+        await q.message.reply_photo(open(res, 'rb'), caption="Ye lo bhai Killer Look!")
 
 # --- RUN ---
 if __name__ == '__main__':
