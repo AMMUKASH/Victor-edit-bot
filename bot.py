@@ -1,15 +1,14 @@
 import os
-import random
 from flask import Flask
 from threading import Thread
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-# --- RENDER SERVER ---
+# --- RENDER KEEP-ALIVE ---
 app = Flask('')
 @app.route('/')
-def home(): return "Bot is Online!"
+def home(): return "AI Custom Bot is Online!"
 def run(): app.run(host='0.0.0.0', port=8080)
 def keep_alive():
     Thread(target=run).start()
@@ -18,83 +17,91 @@ def keep_alive():
 TOKEN = "8285451307:AAH43YwSEXc_0JX5ES-RfUU_Ms8562izdzI" 
 FONT_DIR = "fonts"
 
-# --- NEW STYLISH ENGINE ---
-def make_stylish_edit(img_path, text, font_name):
-    if img_path:
-        img = Image.open(img_path).convert("RGBA")
-    else:
-        img = Image.new('RGB', (1080, 1080), color=(10, 10, 10)).convert("RGBA")
-    
-    draw = ImageDraw.Draw(img)
-    w, h = img.size
-    
+def get_font(h, size_div=7):
     try:
-        f_path = os.path.join(FONT_DIR, font_name)
-        # Bada Font (Main Name)
-        font_main = ImageFont.truetype(f_path, int(h/7))
-        # Chota Font (Bottom Text)
-        font_sub = ImageFont.truetype(f_path, int(h/15))
+        f_name = [f for f in os.listdir(FONT_DIR) if f.endswith('.ttf')][0]
+        return ImageFont.truetype(os.path.join(FONT_DIR, f_name), int(h/size_div))
     except:
-        font_main = ImageFont.load_default()
-        font_sub = ImageFont.load_default()
+        return ImageFont.load_default()
 
-    # --- GLOW EFFECT LOGIC ---
-    # Layer for glow
-    glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow_layer)
+# --- AI NEON ENGINE ---
+def ai_custom_edit(img_path, user_cmd):
+    words = user_cmd.split()
+    name = words[0]
     
-    # Draw thick red/orange shadow for glow
-    glow_draw.text((w/2, h-h//4), text, fill=(255, 50, 0, 255), font=font_main, anchor="ms", stroke_width=15)
-    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=10))
+    # Default Settings
+    glow_color = (255, 0, 0, 255) # Default Red
+    text_color = "white"
+    y_pos_factor = 0.5 # Center
     
-    # Merge glow with main image
-    img.alpha_composite(glow_layer)
-    
-    # Draw Main Yellow Text
-    draw.text((w/2, h-h//4), text, fill="yellow", font=font_main, anchor="ms", stroke_width=2, stroke_fill="white")
-    
-    # Draw "Girl" Style sub-text
-    draw.text((w/2 + 100, h-h//6), "Girl", fill="white", font=font_sub, anchor="ms")
+    cmd_lower = user_cmd.lower()
 
-    out = "stylish_output.png"
+    # --- COLOR SELECTION LOGIC ---
+    colors = {
+        "red": (255, 0, 0, 255),
+        "blue": (0, 200, 255, 255),
+        "green": (0, 255, 100, 255),
+        "pink": (255, 0, 200, 255),
+        "yellow": (255, 255, 0, 255),
+        "purple": (150, 0, 255, 255),
+        "gold": (255, 215, 0, 255),
+        "cyan": (0, 255, 255, 255)
+    }
+    
+    for c_name, c_val in colors.items():
+        if c_name in cmd_lower:
+            glow_color = c_val
+            break
+
+    # --- POSITION LOGIC ---
+    if "top" in cmd_lower: y_pos_factor = 0.25
+    if "bottom" in cmd_lower: y_pos_factor = 0.8
+
+    # Image Processing
+    img = Image.open(img_path).convert("RGBA") if img_path else Image.new('RGBA', (1080, 1080), (15, 15, 15, 255))
+    w, h = img.size
+    draw = ImageDraw.Draw(img)
+    font = get_font(h)
+    y_pos = h * y_pos_factor
+
+    # --- APPLY NEON GLOW ---
+    if "neon" in cmd_lower:
+        glow_layer = Image.new("RGBA", img.size, (0,0,0,0))
+        glow_draw = ImageDraw.Draw(glow_layer)
+        # Thick Glow Line
+        glow_draw.text((w/2, y_pos), name, fill=glow_color, font=font, anchor="ms", stroke_width=25)
+        glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(15))
+        img.alpha_composite(glow_layer)
+
+    # --- MAIN TEXT ---
+    draw.text((w/2, y_pos), name, fill=text_color, font=font, anchor="ms", stroke_width=2, stroke_fill="black")
+
+    out = "custom_ai_output.png"
     img.convert("RGB").save(out)
     return out
 
 # --- HANDLERS ---
-async def start(u, c):
-    await u.message.reply_text("Bhai! Ab bot naye Killer Style mein edit karega. Photo bhejien!")
-
-async def handle_input(u, c):
-    msg = u.message.caption or u.message.text
-    if not msg: return
-    c.user_data['t'] = msg
+async def handle_msg(update, context):
+    cmd = update.message.caption or update.message.text
+    if not cmd: return
     
-    if u.message.photo:
-        f = await u.message.photo[-1].get_file()
-        await f.download_to_drive("in.png")
-        c.user_data['p'] = "in.png"
-    else:
-        c.user_data['p'] = None
-
-    all_f = [f for f in os.listdir(FONT_DIR) if f.endswith('.ttf')]
-    btns = [[InlineKeyboardButton(f"Style Font: {fn}", callback_data=f"S:{fn}")] for fn in all_f]
-    await u.message.reply_text("Font chunein (Glow effect ke saath):", reply_markup=InlineKeyboardMarkup(btns))
-
-async def button(u, c):
-    q = u.callback_query
-    await q.answer()
-    d = q.data.split(":")
+    status = await update.message.reply_text(f"🤖 AI: Creating {cmd} style...")
     
-    if d[0] == "S":
-        await q.edit_message_text("Killer Style Editing chalu hai... 🔥")
-        res = make_stylish_edit(c.user_data.get('p'), c.user_data.get('t'), d[1])
-        await q.message.reply_photo(open(res, 'rb'), caption="Ye lo bhai Killer Look!")
+    path = None
+    if update.message.photo:
+        path = "input.png"
+        file = await update.message.photo[-1].get_file()
+        await file.download_to_drive(path)
 
-# --- RUN ---
+    try:
+        result = ai_custom_edit(path, cmd)
+        await update.message.reply_photo(photo=open(result, 'rb'), caption=f"✨ Done! Style: {cmd}")
+    except Exception as e:
+        await update.message.reply_text(f"Error: {e}")
+    await status.delete()
+
 if __name__ == '__main__':
     keep_alive()
-    app_bot = Application.builder().token(TOKEN).build()
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(MessageHandler(filters.ALL, handle_input))
-    app_bot.add_handler(CallbackQueryHandler(button))
-    app_bot.run_polling()
+    bot = Application.builder().token(TOKEN).build()
+    bot.add_handler(MessageHandler(filters.ALL, handle_msg))
+    bot.run_polling()
