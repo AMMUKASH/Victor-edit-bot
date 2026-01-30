@@ -18,7 +18,7 @@ def keep_alive():
 
 # --- CONFIGURATION ---
 TOKEN = "8285451307:AAH43YwSEXc_0JX5ES-RfUU_Ms8562izdzI" # @BotFather wala token
-FONT_PATH = "font.ttf" 
+FONT_PATH = os.path.join(os.getcwd(), "font.ttf")
 
 # --- IMAGE EDITING LOGIC ---
 def process_graphics(input_path, text, mode="DP"):
